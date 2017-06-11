@@ -4,11 +4,11 @@
 #include <string>
 #include <fstream>
 #include <set>
-#include <assert>
+#include <assert.h>
+#include <pthread.h>
+#include "buffer_manager.h"
 
 namespace util {
-
-class BufferManager<std::string *>;
 
 class DynamicWordsList {
 
@@ -20,14 +20,15 @@ public:
 
 public:
   
-  DynamicWordsList(BufferManager<std::string *> *bm) : bm_(bm), 
-                                                       file_name_cb_(NULL), 
-                                                       file_name_cb_arg_(NULL),
-                                                       update_cb_(NULL) { }
+  DynamicWordsList() : sbm_(new BufferManager<std::set<std::string> *>) { 
+    Init();
+  }
 
-
+  DynamicWordsList(BufferManager<std::set<std::string> *> *bm) : sbm_(bm) { 
+    Init();
+  }
   // Register callback to get the file name to load
-  void RegisterGetFileNameCb(GetFileNameCb cb, void *arg) {
+  void RegisterGetFileNameCb(GetFileNameCb cb, void *arg = NULL) {
     assert(cb);
     file_name_cb_ = cb;
     file_name_cb_arg_ = arg;
@@ -38,11 +39,18 @@ public:
     update_cb_ = cb;
   }
 
-  bool Update();
+  // Load data to set, and begin the updateing thread.
+  int Start();
+
+private:
+
+  static void *UpdateRoutine(void *arg);
+
+  void Init();
 
 private:
   
-  BufferManager<std::string *> sbm;
+  BufferManager<std::set<std::string> *>  *sbm_;
 
   GetFileNameCb file_name_cb_;
 
@@ -50,6 +58,7 @@ private:
 
   UpdateCb update_cb_;
 
+  pthread_t pid_;
 };
 
 } // namespace util
