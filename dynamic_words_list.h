@@ -39,8 +39,11 @@ public:
     update_cb_ = cb;
   }
 
+  pthread_t GetPid() const { return pid_; }
   // Load data to set, and begin the updateing thread.
   int Start();
+
+  bool InList(const std::string &w) const;
 
 private:
 

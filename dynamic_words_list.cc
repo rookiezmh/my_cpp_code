@@ -15,7 +15,6 @@ void *DynamicWordsList::UpdateRoutine(void *arg) {
   set<string> *s = p->sbm_->GetUse();
   while (f) {
     f.getline(buf, sizeof(buf));
-    cout << "insert " << buf << endl;
     s->insert(buf);
   }
   return NULL;
@@ -25,6 +24,11 @@ void DynamicWordsList::Init() {
   file_name_cb_ = NULL;
   file_name_cb_arg_ = NULL;
   update_cb_ = NULL;
+}
+
+bool DynamicWordsList::InList(const string &w) const {
+  const set<string> *list = sbm_->GetUse();
+  return list->find(w) != list->end();
 }
 
 int DynamicWordsList::Start() {
