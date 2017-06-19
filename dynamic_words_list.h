@@ -28,12 +28,13 @@ public:
 
   typedef string (*GetFileNameCb)(void *arg);
 
-  typedef void (*UpdateCb)(std::ifstream &file, set<T> &s);
+  typedef void (*UpdateCb)(ifstream &file, set<T> &s);
 
 public:
   
-  explicit DynamicWordsList(int interval = 60) : sbm_(new BufferManager<set<T> *>),
-                                   interval_(interval) { 
+  explicit DynamicWordsList(int interval = 60) : 
+                                                sbm_(new BufferManager<set<T> *>),
+                                                interval_(interval) { 
     Init();
   }
 
@@ -69,7 +70,7 @@ private:
 
   bool LoadAndSwap();
   
-  BufferManager<std::set<T> *>  *sbm_;
+  BufferManager<set<T> *>  *sbm_;
 
   int interval_;
 
@@ -93,6 +94,7 @@ bool DynamicWordsList<T>::LoadAndSwap() {
     return false;
   }
   set<T> *s = sbm_->GetUpd();
+  s->clear();
   update_cb_(f, *s);
   {
     RWLockGuard l(prw_lock_);
@@ -100,6 +102,7 @@ bool DynamicWordsList<T>::LoadAndSwap() {
     sbm_->Swap();
   }
   s = sbm_->GetUpd();
+  s->clear();
   update_cb_(f, *s);
   return true;
 }
