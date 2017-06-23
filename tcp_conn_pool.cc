@@ -1,11 +1,14 @@
 #include "tcp_conn_pool.h"
 #include "util_functions.h"
-#include "rwlock_guard.h"
 #include <stdexcept>
 #include <iostream>
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
+#include <arpa/inet.h>
+#include <netinet/tcp.h>
+#include <fcntl.h>
 
 namespace util {
 
@@ -33,12 +36,18 @@ TcpConnPool::TcpConnPool(const string &remote_str, int conn_num) :
     Destroy();
     throw logic_error("Can not init conns.");
   }
-  
-  int r = pthread_create(&fix_thread_, NULL, FixPool, this);
-  if (r != 0) {
-    Destroy();
-    throw logic_error("Can not create fix routine.");
+}
+
+void TcpConnPool::FixPool(bool &r) {
+  pthread_mutex_lock(&mutex_);
+  int broken_num = conn_num_ - sockets_.size();
+  if (Conn2Remote(broken_num) != broken_num) {
+    r = false;
+    pthread_mutex_unlock(&mutex_);
+    return;
   }
+  r = true;
+  pthread_mutex_unlock(&mutex_);
 }
 
 void TcpConnPool::Destroy() {
@@ -47,11 +56,16 @@ void TcpConnPool::Destroy() {
 
 TcpConnPool::~TcpConnPool() {
   pthread_mutex_lock(&mutex_);
-  for (int i : sockets_)
+  while (!sockets_.empty()) {
+    int i = sockets_.front();
+    sockets_.pop();
+    cout << "Close " << i << endl;
     close(i);
+  }
   is_destroyed_ = true;
   pthread_cond_broadcast(&cond_);
   pthread_mutex_unlock(&mutex_);
+  pthread_mutex_destroy(&mutex_);
 }
 
 TcpConnPool *TcpConnPool::Create(const string &remote_str, int conn_num) {
@@ -66,6 +80,7 @@ TcpConnPool *TcpConnPool::Create(const string &remote_str, int conn_num) {
 bool TcpConnPool::Init() {
   if (Conn2Remote(conn_num_) != conn_num_) {
     cerr << " connect failed.\n";
+    Destroy();
     return false;
   }
   return true;
@@ -79,35 +94,99 @@ int TcpConnPool::Conn2Remote(int conn_num) {
       return i;
     }
     pthread_mutex_lock(&mutex_);
-    sockets_.push_back(sfd);
+    sockets_.push(sfd);
     pthread_mutex_unlock(&mutex_);
   } 
   return conn_num;
 }
 
-int TcpConnPool::GetConn() {
-  if (is_destroyed_) return -1;
+void TcpConnPool::GetConn(int &fd) {
+  if (is_destroyed_) {
+    fd = -1;
+    return;
+  }
   pthread_mutex_lock(&mutex_);
   while (sockets_.empty()) {
     pthread_cond_wait(&cond_, &mutex_);
     if (is_destroyed_) {
+      fd = -1;
       pthread_mutex_unlock(&mutex_);
-      return -1;
+      return;
     }
   }
-  int r = sockets_.front();
-  sockets_.pop_front();
+  fd = sockets_.front();
+  printf("Get sfd:%d\n", fd);
+  sockets_.pop();
   pthread_mutex_unlock(&mutex_);
-  return r;
 }
 
 void TcpConnPool::PutConn(int sfd) {
   pthread_mutex_lock(&mutex_);
-  if (sockets_.size() >= conn_num_)
+  if (sockets_.size() >= conn_num_) {
+    pthread_mutex_unlock(&mutex_);
     return;
-  sockets_.push_back(sfd);
+  }
+  printf("Put sfd:%d\n", sfd);
+  sockets_.push(sfd);
   pthread_cond_signal(&cond_);
   pthread_mutex_unlock(&mutex_);
 }
+
+int TcpConnPool::CreateSocket() {
+  const string &host = remote_.host;
+  const int port = remote_.port;
+  sockaddr_in s_addr;
+  memset(&s_addr, 0, sizeof(s_addr));
+  s_addr.sin_family = AF_INET;
+  s_addr.sin_port = htons(port);
+  inet_pton(AF_INET, host.c_str(), &s_addr.sin_addr);
+  int sfd = socket(AF_INET, SOCK_STREAM, 0);
+  if (sfd == -1) {
+    perror("Socket");
+    return -1;
+  }
+  if (fcntl(sfd, F_GETFL, 0) < 0) {
+    cerr << "fcntl error.\n";
+    return -1;
+  }
+  
+  int on = 1;
+  if (setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, (void *)&on, sizeof(on)) != 0) {
+    perror("Set SO_REUSEADDR");
+    return -1;
+  }
+  
+  if (setsockopt(sfd, SOL_SOCKET, SO_KEEPALIVE, (void *)&on, sizeof(on)) != 0) {
+    perror("Set SO_KEEPALIVE");
+    return -1;
+  }
+  
+  if (setsockopt(sfd, IPPROTO_TCP, TCP_NODELAY, (void *)&on, sizeof(on)) != 0) {
+    perror("Set SO_NODELAY");
+    return -1;
+  }
+  struct linger ling = {0, 0};
+  if (setsockopt(sfd, SOL_SOCKET, SO_LINGER, (void *)&ling, sizeof(ling)) != 0) {
+    perror("Set SO_LINGER");
+    return -1;
+  }
+  
+  if (connect(sfd, (sockaddr *)&s_addr, sizeof(s_addr)) < 0) {
+    perror("Connect");
+    return -1;
+  }
+  return sfd;
+}
+
+inline int TcpConnPool::Size() const {
+  return conn_num_;
+}
+
+inline void TcpConnPool::RemainNum(int &num) const {
+  pthread_mutex_lock(&mutex_);
+  num = sockets_.size();
+  pthread_mutex_unlock(&mutex_);
+}
+
 
 } // namespace util

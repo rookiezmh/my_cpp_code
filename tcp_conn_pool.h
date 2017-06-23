@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 #include <map>
-#include <list>
+#include <queue>
 #include <pthread.h>
 
 namespace util {
@@ -25,11 +25,17 @@ public:
 
   void Destroy();
 
-  int GetConn();
+  void GetConn(int &fd);
 
   void PutConn(int sfd);
 
   void DeleteConn(int sfd);
+
+  int Size() const;
+
+  void FixPool(bool &r);
+  
+  void RemainNum(int &num) const;
 
 protected:
   // Heap allocated only
@@ -45,13 +51,13 @@ private:
 
   int CreateSocket();
 
-  static void *FixPool(void *arg);
-  
   Remote remote_;
 
-  std::list<int> sockets_;
+  std::queue<int> sockets_;
 
-  int conn_num_;
+  size_t conn_num_;
+
+  int broken_conn_num_;
 
   pthread_t fix_thread_;
   
