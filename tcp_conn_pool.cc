@@ -9,6 +9,7 @@
 #include <arpa/inet.h>
 #include <netinet/tcp.h>
 #include <fcntl.h>
+#include <assert.h>
 
 namespace util {
 
@@ -41,9 +42,10 @@ TcpConnPool::TcpConnPool(const string &remote_str, int conn_num) :
 void TcpConnPool::FixPool(bool &r) {
   pthread_mutex_lock(&mutex_);
   int broken_num = conn_num_ - sockets_.size();
+  assert(broken_num > 0);
+  pthread_mutex_unlock(&mutex_);
   if (Conn2Remote(broken_num) != broken_num) {
     r = false;
-    pthread_mutex_unlock(&mutex_);
     return;
   }
   r = true;

@@ -1,6 +1,10 @@
 #ifndef GALAXY_TCP_CONN_POOL_
 #define GALAXY_TCP_CONN_POOL_
 
+/*
+ * A simple thread safe tcp conn pool. Maybe buggy
+ * */
+
 #include <string>
 #include <vector>
 #include <map>
