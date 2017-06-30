@@ -190,5 +190,4 @@ inline void TcpConnPool::RemainNum(int &num) const {
   pthread_mutex_unlock(&mutex_);
 }
 
-
 } // namespace util
