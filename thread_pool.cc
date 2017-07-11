@@ -78,6 +78,7 @@ bool ThreadPool::Destroy(int flag) {
     shutdown_ = (flag & kImmediateShutDown) ? kImmediateShutDown : kGracefulShutDown;
 
     pthread_cond_broadcast(&add_notify_);
+    pthread_cond_broadcast(&done_notify_);
     pthread_mutex_unlock(&mutex_);
     for (int i = 0; i < thread_num_; ++i) {
       if (pthread_join(threads_[i], NULL) != 0) {
