@@ -130,15 +130,17 @@ void *ThreadPool::ThreadRoutine(void *arg) {
 }
 
 int ThreadPool::AddTask(const Task &task, int timeout) {
-  pthread_mutex_lock(&mutex_);
-  int next = (tail_ + 1) % task_queue_size_;
+  struct timeval tp;
+	struct timespec ts;
   if (timeout != -1) {
-    struct timeval tp;
-	  struct timespec ts;
     gettimeofday(&tp, NULL);
     ts.tv_sec  = tp.tv_sec;
     ts.tv_nsec = tp.tv_usec * 1000;
     ts.tv_nsec += timeout * 1000000;
+  }
+  pthread_mutex_lock(&mutex_);
+  int next = (tail_ + 1) % task_queue_size_;
+  if (timeout != -1) {
     while (count_ == task_queue_size_ && !shutdown_) {
       int r = pthread_cond_timedwait(&done_notify_, &mutex_, &ts);
       if (r == ETIMEDOUT) {
