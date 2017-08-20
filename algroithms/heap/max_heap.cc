@@ -50,10 +50,14 @@ void MaxHeap::DelMax() {
   Sink(1);
 }
 
-MaxHeap::iterator MaxHeap::begin() {
+MaxHeap::const_iterator MaxHeap::begin() const {
   return ++vec.begin();
 }
 
-MaxHeap::iterator MaxHeap::end() {
+MaxHeap::const_iterator MaxHeap::end() const {
   return vec.end();
+}
+
+int MaxHeap::Top() const {
+  return *begin();
 }
